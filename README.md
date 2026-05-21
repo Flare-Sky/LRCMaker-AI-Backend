@@ -15,8 +15,8 @@
 
 1. **下载文件**：
    * 前往本页面的 [Releases](https://github.com/Flare-Sky/LRCMaker-AI-Backend/releases) 页面。
-   * **Windows 用户**：下载 `LRCMaker-Windows-App.zip`。
-   * **Mac 用户**：下载 `LRCMaker_Backend_Mac.zip`。
+   * **Windows 用户**：下载 `LRCMaker-AI-Backend-Windows.zip`。
+   * **Mac 用户**：下载 `LRCMaker-AI-Backend-Mac.zip`。
 2. **解压并运行**：
    * 将压缩包解压到一个你找得到的地方（注意：路径中最好不要有中文）。
    * **Windows**：双击运行文件夹里的 `LRCMaker_Backend_Win.exe`。
