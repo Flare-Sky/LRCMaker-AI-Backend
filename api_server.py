@@ -1,4 +1,11 @@
 import os
+import sys
+
+if getattr(sys, 'frozen', False):
+    # sys._MEIPASS 是 PyInstaller 存放解压/附加文件的核心目录
+    application_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+    os.environ["PATH"] = application_path + os.pathsep + os.environ.get("PATH", "")
+
 import tempfile
 import stable_whisper
 import multiprocessing
