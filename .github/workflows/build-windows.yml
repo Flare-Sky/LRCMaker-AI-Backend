@@ -33,7 +33,7 @@ jobs:
 
     - name: 5. Build with PyInstaller
       run: |
-        pyinstaller --name "LRCMaker_Backend_Win" --onedir --add-binary "ffmpeg.exe;." --add-binary "ffprobe.exe;." api_server.py
+        pyinstaller --name "LRCMaker_Backend_Win" --onedir --add-binary "ffmpeg.exe;." --add-binary "ffprobe.exe;." --hidden-import faster_whisper api_server.py
 
     - name: 6. Upload Artifact
       uses: actions/upload-artifact@v4
