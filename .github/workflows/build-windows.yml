@@ -1,0 +1,42 @@
+name: Build Windows Version
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: 1. Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 2. Setup Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: 3. Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: 4. Download and Extract FFmpeg
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile "ffmpeg.zip"
+        Expand-Archive -Path "ffmpeg.zip" -DestinationPath "ffmpeg_extracted"
+        Copy-Item "ffmpeg_extracted\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe" -Destination "."
+        Copy-Item "ffmpeg_extracted\ffmpeg-master-latest-win64-gpl\bin\ffprobe.exe" -Destination "."
+
+    - name: 5. Build with PyInstaller
+      run: |
+        pyinstaller --name "LRCMaker_Backend_Win" --onedir --add-binary "ffmpeg.exe;." --add-binary "ffprobe.exe;." api_server.py
+
+    - name: 6. Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: LRCMaker-Windows-App
+        path: dist/LRCMaker_Backend_Win/
