@@ -15,8 +15,8 @@
 
 1. **下载文件**：
    * 前往本页面的 [Releases](https://github.com/Flare-Sky/LRCMaker-AI-Backend/releases) 页面。
-   * **Windows 用户**：下载 `LRCMaker-AI-Backend-Windows.zip`。
-   * **Mac 用户**：下载 `LRCMaker-AI-Backend-Mac.zip`。
+   * **Windows 用户**：下载 `LRCMaker-Windows-App.zip`。
+   * **Mac 用户**：下载 `LRCMaker_Backend_Mac.zip`。
 2. **解压并运行**：
    * 将压缩包解压到一个你找得到的地方（注意：路径中最好不要有中文）。
    * **Windows**：双击运行文件夹里的 `LRCMaker_Backend_Win.exe`。
@@ -31,7 +31,7 @@
 * 使用 Edge 或 Chrome 浏览器，点击安装：[Tampermonkey (油猴插件)](https://www.tampermonkey.net/)。
 
 ### 第三步：安装专属界面脚本
-* 点击此处一键安装：👉 **[GreasyFork 安装链接]** *(注：这里填你发布到 GreasyFork 后的脚本链接)*。
+* 点击此处一键安装：👉 **[点击前往 Greasy Fork 安装脚本](https://greasyfork.org/zh-CN/scripts/579199-lrc-maker-ai-%E8%BE%85%E5%8A%A9%E5%AF%B9%E9%BD%90-%E9%85%8D%E5%90%88%E6%9C%AC%E5%9C%B0%E5%BC%95%E6%93%8E)**
 * 安装成功后，你的准备工作就全部完成了！
 
 ---
@@ -61,11 +61,9 @@
 
 ---
 
----
-
 ## 🤝 贡献与支持
 
-欢迎对本项目提出改进建议或贡献代码。如果您在使用过程中遇到任何问题，或有其他交流意向，请通过以下方式联系我：
+欢迎对本项目提出改进建议（提交 Issue）或贡献代码（提交 Pull Request）。如果您在使用过程中遇到任何问题，或有其他交流意向，请通过以下方式联系我：
 
 * **GitHub:** [@Flare-Sky](https://github.com/Flare-Sky)
 * **个人网址:** [https://flaresky.me](https://flaresky.me)
