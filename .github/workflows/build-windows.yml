@@ -34,17 +34,16 @@ jobs:
         run: |
           pyinstaller --name "LRCMaker_Backend_Win" --onedir --add-binary "ffmpeg.exe;." --add-binary "ffprobe.exe;." --hidden-import faster_whisper api_server.py
 
-      - name: Get Version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_ENV
-
       - name: Zip Windows Release
         run: |
-          Compress-Archive -Path dist\LRCMaker_Backend_Win -DestinationPath LRCMaker-AI-Backend-Windows-${{ env.VERSION }}.zip
+          Compress-Archive -Path dist\LRCMaker_Backend_Win -DestinationPath LRCMaker-AI-Backend-Windows-${{ github.ref_name }}.zip
 
       - name: Upload Windows Artifact for Inspection
         uses: actions/upload-artifact@v4
         with:
-          name: LRCMaker-AI-Backend-Windows-${{ env.VERSION }}
-          path: LRCMaker-AI-Backend-Windows-${{ env.VERSION }}.zip
+          name: LRCMaker-AI-Backend-Windows-${{ github.ref_name }}
+          path: LRCMaker-AI-Backend-Windows-${{ github.ref_name }}.zip
           retention-days: 7
+      - name: Get Version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_ENV
