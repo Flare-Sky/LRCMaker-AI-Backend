@@ -175,4 +175,9 @@ async def api_align(
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     
+<<<<<<< HEAD
     uvicorn.run(app, host="127.0.0.1", port=8000)
+=======
+    # 【核心修复】直接传入 app 对象，而不是字符串！同时必须去掉 reload=True
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+>>>>>>> 60db4072611d8242257dda1fab64d48c589b3608
