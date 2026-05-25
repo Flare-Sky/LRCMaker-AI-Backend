@@ -1,4 +1,12 @@
 import os
+import sys
+
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
+if getattr(sys, 'frozen', False):
+    application_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+    os.environ["PATH"] = application_path + os.pathsep + os.environ.get("PATH", "")
+
 import tempfile
 import stable_whisper
 import multiprocessing
@@ -9,7 +17,6 @@ import uvicorn
 
 model = None
 
-# 使用最新的 lifespan 方式管理启动和关闭
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model
@@ -25,9 +32,8 @@ async def lifespan(app: FastAPI):
     )
     print("✅ AI 引擎就绪！请不要关闭此黑色窗口。")
     print("👉 现在去网页里点击 [一键 AI 强制对齐] 吧！")
-    yield  # 这里是应用运行的地方
+    yield
 
-# 将 lifespan 注册到 app
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
@@ -38,9 +44,6 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
-# ==========================================
-# 核心对齐逻辑（改造为纯函数，不直接读写本地持久文件）
-# ==========================================
 def format_time(seconds):
     minutes = int(seconds // 60)
     remaining_seconds = seconds % 60
@@ -117,7 +120,6 @@ def generate_lrc_content(audio_path: str, raw_lyrics_text: str, ti: str, ar: str
             start_time = prev_line_end_time + 0.1
             start_time_str = "[99:99.99]" 
 
-        # 间奏清屏
         if prev_line_end_time > 0 and (start_time - prev_line_end_time) > interlude_threshold:
             lrc_lines.append(f"{format_time(prev_line_end_time + 0.2)} ")
 
@@ -134,15 +136,11 @@ def generate_lrc_content(audio_path: str, raw_lyrics_text: str, ti: str, ar: str
         lrc_lines.append(f"{start_time_str}{line}")
         prev_line_end_time = current_line_end_time
 
-    # 结尾清屏
     if prev_line_end_time > 0:
         lrc_lines.append(f"{format_time(prev_line_end_time + 1.0)} ")
 
     return "\n".join(lrc_lines)
 
-# ==========================================
-# 定义 API 接口
-# ==========================================
 @app.post("/api/align")
 async def api_align(
     audio: UploadFile = File(...),
@@ -153,18 +151,14 @@ async def api_align(
 ):
     print(f"📥 收到请求：音频文件 [{audio.filename}], 文本长度 [{len(lyrics)}]")
     
-    # 将前端传来的音频文件保存到系统的临时目录
     try:
-        # 创建一个临时文件 (delete=False 保证我们在交给 AI 处理前它不会消失)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp_path = tmp.name
-            # 将上传的音频流写入临时文件
             content = await audio.read()
             tmp.write(content)
             
         print("🎵 音频已保存至临时目录，开始处理...")
         
-        # 调用核心生成函数
         lrc_result = generate_lrc_content(tmp_path, lyrics, ti, ar, al)
         
         print("✅ 处理完成，返回数据给前端。")
@@ -175,13 +169,10 @@ async def api_align(
         return {"code": 500, "message": str(e), "data": None}
         
     finally:
-        # 【重要】处理完毕后，立刻删除临时音频文件，释放硬盘空间
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
 if __name__ == "__main__":
-    # 【必须加这一句】防止 PyInstaller 打包多进程应用时无限创建子进程
     multiprocessing.freeze_support()
     
-    # 【核心修复】直接传入 app 对象，而不是字符串！同时必须去掉 reload=True
     uvicorn.run(app, host="127.0.0.1", port=8000)
