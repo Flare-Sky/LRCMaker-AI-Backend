@@ -1,16 +1,12 @@
-# Python 缓存
 __pycache__/
 *.py[cod]
 *$py.class
-
-# 打包生成的文件夹
 build/
 dist/
 *.spec
-
-# 虚拟环境 (如果有)
 venv/
+intel_venv/
 .env
-
-# Mac 系统文件
+ffmpeg
+ffprobe
 .DS_Store
