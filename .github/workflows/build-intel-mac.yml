@@ -1,14 +1,15 @@
 name: Build Intel Mac
 
-# 触发条件：当你推送 v 开头的标签时唤醒机器人
 on:
   push:
     tags:
       - 'v*'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-mac-intel:
-    # 🌟 核心机密：macos-13 是 GitHub 最后的 Intel 架构机型！(macos-14 已经是 M 芯片了)
     runs-on: macos-13 
 
     steps:
@@ -18,32 +19,28 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13' # 与你本地开发环境保持一致
+          python-version: '3.13'
 
       - name: Install Dependencies
         run: |
           pip install pyinstaller
           pip install -r requirements.txt
 
-      # 🌟 下载 Mac 专用的静态 FFmpeg 引擎 (Intel 架构)
       - name: Download Mac FFmpeg
         run: |
           curl -L -o ffmpeg.zip https://evermeet.cx/ffmpeg/ffmpeg-6.0.zip
           unzip ffmpeg.zip
           curl -L -o ffprobe.zip https://evermeet.cx/ffmpeg/ffprobe-6.0.zip
           unzip ffprobe.zip
-          # 赋予可执行权限
           chmod +x ffmpeg ffprobe
 
       - name: Build App
         run: |
-          # 像打 Windows 包一样，把 ffmpeg 和 ffprobe 塞进包里
           pyinstaller --name "LRCMaker_Backend_Intel" --onedir --add-binary "ffmpeg:." --add-binary "ffprobe:." --hidden-import faster_whisper api_server.py
 
       - name: Zip Mac Intel Release
         run: |
           cd dist
-          # 保留软链接进行压缩，防止包损坏
           zip -ry LRCMaker-AI-Backend-Mac-Intel-${{ github.ref_name }}.zip LRCMaker_Backend_Intel
 
       - name: Upload Artifact
