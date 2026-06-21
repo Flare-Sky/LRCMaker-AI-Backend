@@ -5,8 +5,11 @@ build/
 dist/
 *.spec
 venv/
-intel_venv/
+*_venv/
+models/
 .env
+*.zip
+ffmpeg_temp/
 ffmpeg
 ffprobe
 .DS_Store
