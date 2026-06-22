@@ -2,11 +2,11 @@
 set -e
 
 echo "================================================="
-echo " 🚀 LRCMaker AI 跨平台一键部署与同步脚本 (v2.0 终极版)"
+echo " 🚀 LRCMaker AI 跨平台一键部署与同步脚本 (v2.0 双架构终极版)"
 echo "================================================="
 echo "请选择你要执行的操作："
 echo "1. 📥 从 GitHub 同步最新代码到本地 (Git Pull)"
-echo "2. 📦 完整发布流程 (提交代码 -> 本地 Mac 打包 -> 云端 Win 打包)"
+echo "2. 📦 完整发布流程 (提交代码 -> 本地 Mac 双架构打包 -> 云端 Win 打包)"
 read -p "请输入选项 [1 或 2]: " choice
 
 if [ "$choice" == "1" ]; then
@@ -16,9 +16,10 @@ if [ "$choice" == "1" ]; then
     exit 0
 elif [ "$choice" == "2" ]; then
     # 获取版本号
-    read -p "👉 请输入新版本号 (例如 1.0, 不需要输入v): " version
+    read -p "👉 请输入新版本号 (例如 2.0, 不需要输入v): " version
     full_version="v$version"
-    mac_zip_name="LRCMaker-AI-Backend-Mac-$full_version.zip"
+    m1_zip_name="LRCMaker-AI-Backend-Mac-M1-$full_version.zip"
+    intel_zip_name="LRCMaker-AI-Backend-Mac-Intel-$full_version.zip"
 
     echo ""
     echo "⚙️ 步骤 1/5: 提交并推送代码到 GitHub..."
@@ -27,7 +28,13 @@ elif [ "$choice" == "2" ]; then
     if [ -z "$commit_msg" ]; then
         commit_msg="Release $full_version"
     fi
-    git commit -m "$commit_msg" || echo "⚠️ 没有检测到需要 commit 的新代码，继续往下执行..."
+    
+    # 兼容 set -e 的安全 commit 方式
+    if git diff --cached --quiet; then
+        echo "⚠️ 没有检测到需要 commit 的新代码，继续往下执行..."
+    else
+        git commit -m "$commit_msg"
+    fi
     git push || { echo "❌ Git 推送失败！请检查网络或处理分支冲突后重试。"; exit 1; }
 
     echo ""
@@ -36,31 +43,46 @@ elif [ "$choice" == "2" ]; then
     echo "清理完成。"
 
     echo ""
-    echo "⚙️ 步骤 3/5: 开始本地构建 Mac 版本..."
-    python3 -m PyInstaller --name "LRCMaker_Backend" --onedir api_server.py || { 
-        echo ""
-        echo "❌ [致命错误] Mac 本地打包失败！"
-        echo "👆 请向上翻阅终端里的红色报错日志（例如 SyntaxError），修复代码后重新运行脚本。"
-        exit 1 
-    }
+    echo "⚙️ 步骤 3/5: 开始本地双架构构建 Mac 版本 (M 芯片 & Intel)..."
     
-    echo ""
-    echo "⚙️ 步骤 4/5: 🧠 云端预下载 AI 模型 (v2.0 纯离线特性)..."
-    echo "正在拉取 faster-whisper-small 模型，塞入发布包中..."
-    python3 -m pip install huggingface_hub
-    python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend/models/faster-whisper-small')" || {
-        echo "❌ [致命错误] AI 模型下载失败！请检查网络状态。"
-        exit 1
+    echo ">>> 正在构建 Mac M1/M2/M3 版本..."
+    source m1_venv/bin/activate
+    python3 -m PyInstaller --name "LRCMaker_Backend_Mac_M1" --onedir api_server.py || { 
+        echo "❌ [致命错误] Mac M1 本地打包失败！"; exit 1; 
     }
+    deactivate
+
+    echo ">>> 正在构建 Mac Intel 版本..."
+    source intel_venv/bin/activate
+    python3 -m PyInstaller --name "LRCMaker_Backend_Mac_Intel" --onedir api_server.py || { 
+        echo "❌ [致命错误] Mac Intel 本地打包失败！"; exit 1; 
+    }
+    deactivate
+
+    echo ""
+    echo "⚙️ 步骤 4/5: 🧠 云端预下载 AI 模型 (v2.0 纯离线双发版)..."
+    echo "正在拉取 faster-whisper-small 模型，分别塞入两个发布包中..."
+    
+    # 借助其中一个虚拟环境来下载模型
+    source m1_venv/bin/activate
+    python3 -m pip install huggingface_hub
+    
+    echo ">>> 注入 M 芯片版..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_M1/models/faster-whisper-small')" || { echo "❌ AI 模型下载失败！"; exit 1; }
+    
+    echo ">>> 注入 Intel 芯片版..."
+    python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_Intel/models/faster-whisper-small')" || { echo "❌ AI 模型下载失败！"; exit 1; }
+    deactivate
     
     echo ""
     echo "打包与模型植入成功！正在压缩 Mac 版本包 (保留系统软链接)..."
     cd dist
-    zip -ry "$mac_zip_name" LRCMaker_Backend || { 
-        echo "❌ [致命错误] 压缩 Mac 版本包失败！找不到目标文件夹。"; exit 1; 
-    }
+    zip -ry "$m1_zip_name" LRCMaker_Backend_Mac_M1 || { echo "❌ 压缩 M1 版本包失败！"; exit 1; }
+    zip -ry "$intel_zip_name" LRCMaker_Backend_Mac_Intel || { echo "❌ 压缩 Intel 版本包失败！"; exit 1; }
     cd ..
-    echo "✅ Mac 版本已成功生成至: dist/$mac_zip_name"
+    
+    echo "✅ Mac M 芯片版本已生成至: dist/$m1_zip_name"
+    echo "✅ Mac Intel 版本已生成至: dist/$intel_zip_name"
 
     echo ""
     echo "⚙️ 步骤 5/5: 触发 Windows 云端打包..."
@@ -68,9 +90,9 @@ elif [ "$choice" == "2" ]; then
     git push origin "$full_version" || { echo "❌ [致命错误] 触发云端构建失败 (Git 推送 Tag 失败)！"; exit 1; }
     
     echo ""
-    echo "🎉 大功告成！指令已发送至云端。"
-    echo "👉 GitHub Actions 正在为你打包 Windows 版本并创建 Artifacts。"
-    echo "👉 稍后请前往 GitHub 仓库的 Actions 页面，下载并检查你的 Windows 产物！"
+    echo "🎉 大功告成！全平台部署指令已执行完毕。"
+    echo "👉 你的桌面上（或 dist 目录中）现在有了两个完全离线版 Mac 压缩包。"
+    echo "👉 GitHub Actions 也正在为你打包内置离线模型的 Windows 版本！"
 else
     echo "❌ 无效的选项，请重新运行脚本。"
     exit 1
