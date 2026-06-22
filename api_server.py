@@ -174,6 +174,10 @@ def generate_lrc_content(audio_path: str, raw_lyrics_text: str, ti: str, ar: str
         "enhanced_lrc": "\n".join(enhanced_lrc_lines)
     }
 
+@app.get("/api/ping")
+async def ping():
+    return {"status": "ok", "app": "lrc-maker-ai", "version": "2.0"}
+
 @app.post("/api/align")
 async def api_align(
     audio: UploadFile = File(...),
@@ -184,6 +188,7 @@ async def api_align(
 ):
     print(f"📥 收到请求：音频文件 [{audio.filename}], 文本长度 [{len(lyrics)}]")
     
+    tmp_path = None 
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp_path = tmp.name
@@ -206,7 +211,7 @@ async def api_align(
         return {"code": 500, "message": str(e), "data": None}
         
     finally:
-        if os.path.exists(tmp_path):
+        if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
 def find_free_port(start_port=8000):

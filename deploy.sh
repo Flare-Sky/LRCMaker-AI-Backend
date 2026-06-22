@@ -17,7 +17,7 @@ if [ "$choice" == "1" ]; then
 elif [ "$choice" == "2" ]; then
     read -p "👉 请输入新版本号 (例如 2.0, 不需要输入v): " version
     full_version="v$version"
-    m1_zip_name="LRCMaker-AI-Backend-Mac-M1-$full_version.zip"
+    m1_zip_name="LRCMaker-AI-Backend-Mac-Arm64-$full_version.zip"
     intel_zip_name="LRCMaker-AI-Backend-Mac-Intel-$full_version.zip"
     mac_zip_name="LRCMaker-AI-Backend-Mac-$full_version.zip"
 
@@ -55,26 +55,40 @@ elif [ "$choice" == "2" ]; then
         rm ffprobe.zip
     fi
     chmod +x ffmpeg ffprobe
+    
+    xattr -c ffmpeg ffprobe 2>/dev/null || true
     echo "✅ 音视频重武器已就绪！"
 
     echo ""
     echo "⚙️ 步骤 3/5: 开始本地构建 Mac 版本 (智能探测 + 极限瘦身)..."
     
-    # 定义强大的 PyInstaller 参数（加入 FFmpeg 并剔除冗余包）
-    PYINSTALLER_ARGS="--name LRCMaker_Backend --onedir --add-binary ffmpeg:. --add-binary ffprobe:. --hidden-import faster_whisper --hidden-import whisper --hidden-import stable_whisper --collect-all torch --exclude-module torch.test --exclude-module torch.distributions --exclude-module torch.utils.tensorboard --exclude-module matplotlib --exclude-module tkinter api_server.py"
+    PYINSTALLER_BASE_ARGS=(
+        "--onedir"
+        "--add-binary" "ffmpeg:."
+        "--add-binary" "ffprobe:."
+        "--hidden-import" "faster_whisper"
+        "--hidden-import" "whisper"
+        "--hidden-import" "stable_whisper"
+        "--collect-all" "torch"
+        "--exclude-module" "torch.test"
+        "--exclude-module" "torch.distributions"
+        "--exclude-module" "torch.utils.tensorboard"
+        "--exclude-module" "matplotlib"
+        "--exclude-module" "tkinter"
+    )
 
     DUAL_BUILD=false
 
     if [ -d "m1_venv" ] && [ -d "intel_venv" ]; then
         DUAL_BUILD=true
-        echo ">>> 检测到双架构虚拟环境，开始分别构建 Mac M1 和 Intel 版本..."
+        echo ">>> 检测到双架构虚拟环境，开始分别构建 Mac Arm64 和 Intel 版本..."
         
         source m1_venv/bin/activate
-        python3 -m PyInstaller $PYINSTALLER_ARGS --name "LRCMaker_Backend_Mac_M1" || { echo "❌ Mac M1 打包失败！"; exit 1; }
+        python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --name "LRCMaker_Backend_Mac_Arm64" api_server.py || { echo "❌ Mac Arm64 打包失败！"; exit 1; }
         deactivate
 
         source intel_venv/bin/activate
-        python3 -m PyInstaller $PYINSTALLER_ARGS --name "LRCMaker_Backend_Mac_Intel" || { echo "❌ Mac Intel 打包失败！"; exit 1; }
+        python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --name "LRCMaker_Backend_Mac_Intel" api_server.py || { echo "❌ Mac Intel 打包失败！"; exit 1; }
         deactivate
         
     elif [ -d "venv" ]; then
@@ -82,7 +96,7 @@ elif [ "$choice" == "2" ]; then
         echo ">>> 将自动降级，仅构建当前系统架构的单版本 Mac 包..."
         
         source venv/bin/activate
-        python3 -m PyInstaller $PYINSTALLER_ARGS --name "LRCMaker_Backend_Mac" || { echo "❌ Mac 本地打包失败！"; exit 1; }
+        python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --name "LRCMaker_Backend_Mac" api_server.py || { echo "❌ Mac 本地打包失败！"; exit 1; }
         deactivate
     else
         echo "❌ [致命错误] 未找到任何虚拟环境！"
@@ -97,7 +111,7 @@ elif [ "$choice" == "2" ]; then
         source m1_venv/bin/activate
         python3 -m pip install huggingface_hub
         echo ">>> 注入 M 芯片版..."
-        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_M1/models/faster-whisper-small')"
+        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_Arm64/models/faster-whisper-small')"
         echo ">>> 注入 Intel 芯片版..."
         python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_Intel/models/faster-whisper-small')"
         deactivate
@@ -113,9 +127,9 @@ elif [ "$choice" == "2" ]; then
     echo "打包与模型植入成功！正在压缩 Mac 版本包 (保留系统软链接)..."
     cd dist
     if [ "$DUAL_BUILD" = true ]; then
-        zip -ry "$m1_zip_name" LRCMaker_Backend_Mac_M1
+        zip -ry "$m1_zip_name" LRCMaker_Backend_Mac_Arm64
         zip -ry "$intel_zip_name" LRCMaker_Backend_Mac_Intel
-        echo "✅ Mac M 芯片版本已生成至: dist/$m1_zip_name"
+        echo "✅ Mac Arm64 版本已生成至: dist/$m1_zip_name"
         echo "✅ Mac Intel 版本已生成至: dist/$intel_zip_name"
     else
         zip -ry "$mac_zip_name" LRCMaker_Backend_Mac
