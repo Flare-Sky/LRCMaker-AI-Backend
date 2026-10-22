@@ -44,15 +44,18 @@ elif [ "$choice" == "2" ]; then
     echo "📥 自动获取并准备 Mac 版 FFmpeg 与 FFprobe..."
     if [ ! -f "ffmpeg" ]; then
         echo "   - 本地未找到 ffmpeg，正在自动下载..."
-        curl -L -o ffmpeg.zip https://evermeet.cx/ffmpeg/getrelease/zip
-        unzip -q -o ffmpeg.zip
-        rm ffmpeg.zip
+        curl -L "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip" -o ffmpeg.zip
+        unzip -o -q ffmpeg.zip
+        chmod +x ffmpeg
+        rm -f ffmpeg.zip
     fi
+
     if [ ! -f "ffprobe" ]; then
         echo "   - 本地未找到 ffprobe，正在自动下载..."
-        curl -L -o ffprobe.zip https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip
-        unzip -q -o ffprobe.zip
-        rm ffprobe.zip
+        curl -L "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffprobe.zip" -o ffprobe.zip
+        unzip -o -q ffprobe.zip
+        chmod +x ffprobe
+        rm -f ffprobe.zip
     fi
     chmod +x ffmpeg ffprobe
     
