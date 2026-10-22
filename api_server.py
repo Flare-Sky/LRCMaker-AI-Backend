@@ -64,6 +64,11 @@ def format_time(seconds):
     remaining_seconds = seconds % 60
     return f"[{minutes:02d}:{remaining_seconds:05.2f}]"
 
+def format_time_raw(seconds):
+    minutes = int(seconds // 60)
+    remaining_seconds = seconds % 60
+    return f"{minutes:02d}:{remaining_seconds:05.2f}"
+
 def clean_str(s):
     return s.replace(" ", "").replace("\n", "").replace("\r", "").replace("\t", "")
 
@@ -160,7 +165,7 @@ def generate_lrc_content(audio_path: str, raw_lyrics_text: str, ti: str, ar: str
         for w in current_line_words:
             clean_word = clean_str(w.word)
             if clean_word:
-                enhanced_line_str += f"<{format_time(w.start)}>{clean_word}"
+                enhanced_line_str += f"<{format_time_raw(w.start)}>{clean_word}"
         enhanced_lrc_lines.append(enhanced_line_str)
 
         prev_line_end_time = current_line_end_time
