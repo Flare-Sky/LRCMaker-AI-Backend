@@ -3,3 +3,6 @@ uvicorn
 python-multipart
 stable-ts
 faster-whisper
+torch<=2.2.2
+torchaudio<=2.2.2
+numpy<2.0.0

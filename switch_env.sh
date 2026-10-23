@@ -1,6 +1,31 @@
 #!/bin/bash
 set -e
 
+# 🛡️ 1. 剥离外层未退出的虚拟环境干扰
+if [ -n "$VIRTUAL_ENV" ]; then
+    export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "$VIRTUAL_ENV" | tr '\n' ':' | sed 's/:$//')
+    unset VIRTUAL_ENV
+fi
+
+# 🛡️ 2. 绕过 /usr/bin 下的 xcrun 空壳替身，并显式指定 macOS SDK 头文件目录 (解决 stdlib.h 找不到的问题)
+if [ -d "/Library/Developer/CommandLineTools/usr/bin" ]; then
+    export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
+fi
+if [ -d "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" ]; then
+    export SDKROOT="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+fi
+
+# 🔍 3. 寻找真正的 Universal2 Python 解释器
+find_universal_python() {
+    for py in /Library/Frameworks/Python.framework/Versions/3.*/bin/python3; do
+        if [ -x "$py" ] && file -L "$py" | grep -q "x86_64" && file -L "$py" | grep -q "arm64"; then
+            echo "$py"
+            return 0
+        fi
+    done
+    return 1
+}
+
 echo "================================================="
 echo " 🛠️  LRCMaker 虚拟环境无缝切换 & 深度清理工具"
 echo "================================================="
@@ -10,44 +35,51 @@ echo "2. 📦 终极打包模式 (深度清理，并创建 arm64_venv & intel_ve
 echo "3. 🧹 仅执行深度清理 (斩草除根，不创建新环境)"
 read -p "请输入选项 [1, 2 或 3]: " choice
 
-# 💥 核心：深度清理函数
 deep_clean() {
     echo ""
     echo "🧹 开始执行深度清理..."
-    
-    echo "   - 清理虚拟环境 (venv, arm64_venv, intel_venv)..."
     rm -rf venv arm64_venv intel_venv
-
-    echo "   - 清理 PyInstaller 构建产物 (build, dist, *.spec)..."
     rm -rf build dist *.spec
-
-    echo "   - 清理请来的“大佛” (ffmpeg, ffprobe 二进制文件)..."
-    rm -f ffmpeg ffprobe ffmpeg.exe ffprobe.exe
-
-    echo "   - 清理打包生成的安装包残留 (*.zip)..."
+    rm -f ffmpeg ffprobe ffmpeg.exe ffprobe.exe ffmpeg.zip ffprobe.zip
     rm -f LRCMaker-AI-Backend-*.zip
-
-    echo "   - 清理 Python 运行缓存 (__pycache__)..."
-    # 递归查找并删除当前目录下所有的 __pycache__ 文件夹
     find . -type d -name "__pycache__" -exec rm -rf {} + > /dev/null 2>&1 || true
-
     echo "   ✨ 深度清理完成！你的项目现在比脸还干净。"
 }
 
-# 📦 复用：依赖安装函数
+run_quiet_or_show_error() {
+    local log_file="/tmp/lrc_pip_error.log"
+    if ! "$@" > "$log_file" 2>&1; then
+        echo ""
+        echo "❌ 命令执行失败: $*"
+        echo "================ 错误日志详情 ================"
+        cat "$log_file"
+        echo "=============================================="
+        rm -f "$log_file"
+        exit 1
+    fi
+    rm -f "$log_file"
+}
+
 install_deps() {
-    echo "   - 正在升级 pip..."
-    pip install --upgrade pip > /dev/null 2>&1
+    local arch_prefix="$1"
+    echo "   - 正在升级 pip ($arch_prefix)..."
+    run_quiet_or_show_error $arch_prefix python3 -m pip install --upgrade pip
+
+    # 🌟 核心修复：如果是 x86_64 环境，提前锁定安装拥有预编译二进制 Wheel 的 numba/llvmlite/numpy 版本，防止触发本地源码编译崩溃
+    if [[ "$arch_prefix" == *"x86_64"* ]]; then
+        echo "   - 正在为 Intel 环境预装底层二进制轮子 (跳过源码编译)..."
+        run_quiet_or_show_error $arch_prefix python3 -m pip install --only-binary=:all: "numpy<2.0.0" "llvmlite==0.42.0" "numba==0.59.1"
+    fi
+
     if [ -f "requirements.txt" ]; then
-        echo "   - 正在安装 requirements.txt 中的基础依赖..."
-        pip install -r requirements.txt > /dev/null 2>&1
+        echo "   - 正在安装 requirements.txt 中的基础依赖 ($arch_prefix)..."
+        run_quiet_or_show_error $arch_prefix python3 -m pip install -r requirements.txt
     fi
     echo "   - 正在安装打包及模型库 (pyinstaller, huggingface_hub)..."
-    pip install pyinstaller huggingface_hub > /dev/null 2>&1
+    run_quiet_or_show_error $arch_prefix python3 -m pip install pyinstaller huggingface_hub
     echo "   ✅ 依赖安装完成！"
 }
 
-# 🚀 路由：根据选项执行动作
 if [ "$choice" == "1" ]; then
     deep_clean
 
@@ -57,7 +89,7 @@ if [ "$choice" == "1" ]; then
     
     echo "⏳ 正在拉取并安装依赖，请稍候..."
     source venv/bin/activate
-    install_deps
+    install_deps "arch -arm64"
     deactivate
     
     echo ""
@@ -65,19 +97,28 @@ if [ "$choice" == "1" ]; then
     echo "👉 运行 'source venv/bin/activate' 即可开始写代码。"
 
 elif [ "$choice" == "2" ]; then
+    UNIVERSAL_PY=$(find_universal_python || true)
+    if [ -z "$UNIVERSAL_PY" ]; then
+        echo ""
+        echo "❌ 错误：未检测到官方 Universal2 Python (/Library/Frameworks/Python.framework)！"
+        exit 1
+    fi
+    echo ""
+    echo "🔎 已锁定真正的双架构 Python 解释器: $UNIVERSAL_PY"
+
     deep_clean
 
     echo ""
     echo "🍎 [1/2] 正在创建 Mac ARM64 专属环境 (arm64_venv)..."
-    arch -arm64 python3 -m venv arm64_venv
+    arch -arm64 "$UNIVERSAL_PY" -m venv arm64_venv
     source arm64_venv/bin/activate
-    install_deps
+    install_deps "arch -arm64"
     deactivate
 
     echo "🦋 [2/2] 正在创建 Mac Intel 转译环境 (intel_venv)..."
-    arch -x86_64 python3 -m venv intel_venv
+    arch -x86_64 "$UNIVERSAL_PY" -m venv intel_venv
     source intel_venv/bin/activate
-    install_deps
+    install_deps "arch -x86_64"
     deactivate
     
     echo ""

@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
 
 echo "================================================="
 echo " 🚀 LRCMaker AI 跨平台一键部署与同步脚本 (v2.0 终极融合版)"
