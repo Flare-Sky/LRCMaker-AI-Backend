@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
 
-# 🛡️ 1. 剥离外层未退出的虚拟环境干扰
+# 🛡️ 自动剥离外层未退出的虚拟环境干扰，并引导底层编译工具链
 if [ -n "$VIRTUAL_ENV" ]; then
-    export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "$VIRTUAL_ENV" | tr '\n' ':' | sed 's/:$//')
+    export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "$VIRTUAL_ENV" \vert{} tr '\n' ':' \vert{} sed 's/:$//')
     unset VIRTUAL_ENV
+fi
+if [ -d "/Library/Developer/CommandLineTools/usr/bin" ]; then
+    export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
 fi
 
 # 🛡️ 2. 绕过 /usr/bin 下的 xcrun 空壳替身，并显式指定 macOS SDK 头文件目录 (解决 stdlib.h 找不到的问题)

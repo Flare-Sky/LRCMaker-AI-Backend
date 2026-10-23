@@ -1,14 +1,37 @@
 #!/bin/bash
 set -e
-export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
+
+if [ -n "$VIRTUAL_ENV" ]; then
+    export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "$VIRTUAL_ENV" | tr '\n' ':' | sed 's/:$//')
+    unset VIRTUAL_ENV
+fi
+if [ -d "/Library/Developer/CommandLineTools/usr/bin" ]; then
+    export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
+fi
+if [ -d "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" ]; then
+    export SDKROOT="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+fi
 
 echo "================================================="
-echo " 🚀 LRCMaker AI 跨平台一键部署与同步脚本 (v2.0 终极融合版)"
+echo " 🚀 LRCMaker AI 跨平台一键部署与同步脚本 (v2.2 终极融合版)"
 echo "================================================="
 echo "请选择你要执行的操作："
 echo "1. 📥 从 GitHub 同步最新代码到本地 (Git Pull)"
 echo "2. 📦 完整发布流程 (提交代码 -> 本地 Mac 打包 -> 云端 Win 打包)"
 read -p "请输入选项 [1 或 2]: " choice
+
+download_ffmpeg() {
+    local target_arch="$1"
+    echo "📥 正在拉取 Mac ($target_arch) 专属静态版 FFmpeg 与 FFprobe..."
+    rm -f ffmpeg ffprobe ffmpeg.zip ffprobe.zip
+    curl -sL "https://ffmpeg.martin-riedl.de/redirect/latest/macos/${target_arch}/release/ffmpeg.zip" -o ffmpeg.zip
+    curl -sL "https://ffmpeg.martin-riedl.de/redirect/latest/macos/${target_arch}/release/ffprobe.zip" -o ffprobe.zip
+    unzip -o -q ffmpeg.zip && unzip -o -q ffprobe.zip
+    chmod +x ffmpeg ffprobe
+    xattr -c ffmpeg ffprobe 2>/dev/null || true
+    rm -f ffmpeg.zip ffprobe.zip
+    echo "✅ FFmpeg ($target_arch) 准备就绪！"
+}
 
 if [ "$choice" == "1" ]; then
     echo "👉 正在拉取云端代码..."
@@ -16,7 +39,7 @@ if [ "$choice" == "1" ]; then
     echo "✅ 同步完成！"
     exit 0
 elif [ "$choice" == "2" ]; then
-    read -p "👉 请输入新版本号 (例如 2.0, 不需要输入v): " version
+    read -p "👉 请输入新版本号 (例如 2.2, 不需要输入v): " version
     full_version="v$version"
     arm64_zip_name="LRCMaker-AI-Backend-Mac-Arm64-$full_version.zip"
     intel_zip_name="LRCMaker-AI-Backend-Mac-Intel-$full_version.zip"
@@ -38,35 +61,16 @@ elif [ "$choice" == "2" ]; then
     git push || { echo "❌ Git 推送失败！"; exit 1; }
 
     echo ""
-    echo "⚙️ 步骤 2/5: 清理旧的构建环境并准备音视频组件..."
+    echo "⚙️ 步骤 2/5: 清理旧的构建环境..."
     rm -rf build dist *.spec
-    echo "清理完成。"
-
-    echo "📥 自动获取并准备 Mac 版 FFmpeg 与 FFprobe..."
-    if [ ! -f "ffmpeg" ]; then
-        echo "   - 本地未找到 ffmpeg，正在自动下载..."
-        curl -L "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip" -o ffmpeg.zip
-        unzip -o -q ffmpeg.zip
-        chmod +x ffmpeg
-        rm -f ffmpeg.zip
-    fi
-
-    if [ ! -f "ffprobe" ]; then
-        echo "   - 本地未找到 ffprobe，正在自动下载..."
-        curl -L "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffprobe.zip" -o ffprobe.zip
-        unzip -o -q ffprobe.zip
-        chmod +x ffprobe
-        rm -f ffprobe.zip
-    fi
-    chmod +x ffmpeg ffprobe
-    
-    xattr -c ffmpeg ffprobe 2>/dev/null || true
-    echo "✅ 音视频重武器已就绪！"
+    echo "✅ 清理完成。"
 
     echo ""
     echo "⚙️ 步骤 3/5: 开始本地构建 Mac 版本 (智能探测 + 极限瘦身)..."
     
     PYINSTALLER_BASE_ARGS=(
+        "--noconfirm"
+        "--clean"
         "--onedir"
         "--add-binary" "ffmpeg:."
         "--add-binary" "ffprobe:."
@@ -87,64 +91,70 @@ elif [ "$choice" == "2" ]; then
         DUAL_BUILD=true
         echo ">>> 检测到双架构虚拟环境，开始分别构建 Mac Arm64 和 Intel 版本..."
         
+        echo "🍎 [1/2] 正在构建 Mac Arm64 版本..."
+        download_ffmpeg "arm64"
         source arm64_venv/bin/activate
-        python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --name "LRCMaker_Backend_Mac_Arm64" api_server.py || { echo "❌ Mac Arm64 打包失败！"; exit 1; }
+        arch -arm64 python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --target-arch arm64 --name "LRCMaker_Backend_Mac_Arm64" api_server.py || { echo "❌ Mac Arm64 打包失败！"; exit 1; }
         deactivate
 
+        echo "🦋 [2/2] 正在构建 Mac Intel (x86_64) 版本..."
+        download_ffmpeg "amd64"
         source intel_venv/bin/activate
-        python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --name "LRCMaker_Backend_Mac_Intel" api_server.py || { echo "❌ Mac Intel 打包失败！"; exit 1; }
+        arch -x86_64 python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --target-arch x86_64 --name "LRCMaker_Backend_Mac_Intel" api_server.py || { echo "❌ Mac Intel 打包失败！"; exit 1; }
         deactivate
+        
+        # 打包结束后恢复本机默认的 arm64 版 ffmpeg 以便日常开发使用
+        download_ffmpeg "arm64"
         
     elif [ -d "venv" ]; then
         echo ">>> ⚠️ 未检测到 arm64_venv/intel_venv，但发现了常规 venv。"
         echo ">>> 将自动降级，仅构建当前系统架构的单版本 Mac 包..."
         
+        download_ffmpeg "arm64"
         source venv/bin/activate
-        python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --name "LRCMaker_Backend_Mac" api_server.py || { echo "❌ Mac 本地打包失败！"; exit 1; }
+        arch -arm64 python3 -m PyInstaller "${PYINSTALLER_BASE_ARGS[@]}" --target-arch arm64 --name "LRCMaker_Backend_Mac" api_server.py || { echo "❌ Mac 本地打包失败！"; exit 1; }
         deactivate
     else
-        echo "❌ [致命错误] 未找到任何虚拟环境！"
+        echo "❌ [致命错误] 未找到任何虚拟环境！请先运行 ./switch_env.sh"
         exit 1
     fi
 
     echo ""
-    echo "⚙️ 步骤 4/5: 🧠 云端预下载 AI 模型 (v2.0 纯离线特性)..."
-    echo "正在拉取 faster-whisper-small 模型，塞入发布包中..."
+    echo "⚙️ 步骤 4/5: 🧠 预下载并注入 AI 离线模型..."
     
     if [ "$DUAL_BUILD" = true ]; then
         source arm64_venv/bin/activate
-        python3 -m pip install huggingface_hub
-        echo ">>> 注入 M 芯片版..."
-        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_Arm64/models/faster-whisper-small')"
-        echo ">>> 注入 Intel 芯片版..."
-        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_Intel/models/faster-whisper-small')"
+        echo ">>> 正在拉取 faster-whisper-small 模型并注入 M 芯片版..."
+        arch -arm64 python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac_Arm64/models/faster-whisper-small')"
+        echo ">>> 正在同步复制模型至 Intel 芯片版 (免重复下载)..."
+        mkdir -p "dist/LRCMaker_Backend_Mac_Intel/models"
+        cp -R "dist/LRCMaker_Backend_Mac_Arm64/models/faster-whisper-small" "dist/LRCMaker_Backend_Mac_Intel/models/"
         deactivate
     else
         source venv/bin/activate
-        python3 -m pip install huggingface_hub
-        echo ">>> 注入单架构版..."
-        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac/models/faster-whisper-small')"
+        echo ">>> 正在拉取模型并注入单架构版..."
+        arch -arm64 python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Systran/faster-whisper-small', local_dir='dist/LRCMaker_Backend_Mac/models/faster-whisper-small')"
         deactivate
     fi
-    
+
     echo ""
-    echo "打包与模型植入成功！正在压缩 Mac 版本包 (保留系统软链接)..."
+    echo "📦 正在压缩 Mac 发布包 (保留系统软链接)..."
     cd dist
     if [ "$DUAL_BUILD" = true ]; then
-        zip -ry "$arm64_zip_name" LRCMaker_Backend_Mac_Arm64
-        zip -ry "$intel_zip_name" LRCMaker_Backend_Mac_Intel
+        zip -ry -q "$arm64_zip_name" LRCMaker_Backend_Mac_Arm64
+        zip -ry -q "$intel_zip_name" LRCMaker_Backend_Mac_Intel
         echo "✅ Mac Arm64 版本已生成至: dist/$arm64_zip_name"
         echo "✅ Mac Intel 版本已生成至: dist/$intel_zip_name"
     else
-        zip -ry "$mac_zip_name" LRCMaker_Backend_Mac
+        zip -ry -q "$mac_zip_name" LRCMaker_Backend_Mac
         echo "✅ Mac 单架构版本已生成至: dist/$mac_zip_name"
     fi
     cd ..
 
     echo ""
     echo "⚙️ 步骤 5/5: 触发 Windows 云端打包..."
-    git tag "$full_version" || { echo "❌ 打标签失败！可能由于该版本号($full_version)已存在。"; exit 1; }
-    git push origin "$full_version" || { echo "❌ 触发云端构建失败！"; exit 1; }
+    git tag -f "$full_version"
+    git push origin -f "$full_version" || { echo "❌ 触发云端构建失败！"; exit 1; }
     
     echo ""
     echo "🎉 大功告成！全平台部署指令已执行完毕。"
