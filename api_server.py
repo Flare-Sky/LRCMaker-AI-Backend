@@ -3,6 +3,7 @@ import sys
 import socket
 import tempfile
 import multiprocessing
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, Form
@@ -180,6 +181,17 @@ def generate_lrc_content(audio_path: str, raw_lyrics_text: str, ti: str, ar: str
         "enhanced_lrc": "\n".join(enhanced_lrc_lines)
     }
 
+# 安全删除函数：重试+捕获占用（WinError32专用）
+def safe_remove(file_path, retry=3, delay=0.4):
+    for _ in range(retry):
+        try:
+            os.unlink(file_path)
+            return
+        except PermissionError:
+            time.sleep(delay)
+        except Exception:
+            return
+
 @app.get("/api/ping")
 async def ping():
     return {"status": "ok", "app": "lrc-maker-ai", "version": "2.0"}
@@ -217,8 +229,9 @@ async def api_align(
         return {"code": 500, "message": str(e), "data": None}
         
     finally:
+        # 移到finally里用安全删除，就算句柄还占用也不会炸接口
         if tmp_path and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+            safe_remove(tmp_path)
 
 def find_free_port(start_port=8000):
     """从指定的起始端口开始，寻找一个未被占用的本地端口"""
